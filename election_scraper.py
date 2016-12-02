@@ -46,8 +46,8 @@ for subreddit in subreddits:
 
 #pprint(subreddit_dicts)
 
-df = pd.DataFrame(list(subreddit_dicts[0].items()))
-df = df.transpose()
+the_donald_df = pd.DataFrame.from_dict(subreddit_dicts[0])
+
 pprint(df)
 
 plt.plot(subreddit_dicts[0]['ups'])
