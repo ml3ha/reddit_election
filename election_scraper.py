@@ -3,6 +3,9 @@ from collections import defaultdict
 from pprint import pprint
 import matplotlib.pyplot as plt
 import pandas as pd
+
+# katie 
+
 # Summary of pip packages we're using:
 # praw: Reddit api scraper with a collection of methods that can be used to retrieve data from reddit.com
 # pip install praw
