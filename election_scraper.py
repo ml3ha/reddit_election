@@ -47,8 +47,9 @@ for subreddit in subreddits:
 #pprint(subreddit_dicts)
 
 the_donald_df = pd.DataFrame.from_dict(subreddit_dicts[0])
+hillaryClinton_df = pd.DataFrame.from_dict(subreddit_dicts[1])
+politics_df = pd.DataFrame.from_dict(subreddit_dicts[2])
 
-pprint(df)
 
 plt.plot(subreddit_dicts[0]['ups'])
 plt.show()
