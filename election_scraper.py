@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import datetime
-import pylab
+
 # Summary of pip packages we're using:
 # praw: Reddit api scraper with a collection of methods that can be used to retrieve data from reddit.com
 # pip install praw
