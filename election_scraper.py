@@ -1,8 +1,10 @@
 import praw
 from collections import defaultdict
-from pprint import pprint
+import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import datetime
+import pylab
 # Summary of pip packages we're using:
 # praw: Reddit api scraper with a collection of methods that can be used to retrieve data from reddit.com
 # pip install praw
@@ -34,21 +36,53 @@ subreddit_dicts = []
 for subreddit in subreddits:
     s = r.subreddit(subreddit)
     sub_info = defaultdict(list)
+    # get the top 50 posts
     for submission in s.top(limit=50):
+        # get a list of variables from each submission. There are a lot!
         variables = vars(submission)
         for field in fields:
             if field == 'author':
-                sub_info[field].append(str(variables[field]))
+                # The author field is a reddit object, so we convert it to a string
+                # Sometimes the reddit user will delete their account, in which their username becomes [deleted]
+                author = str(variables[field]) if variables[field] is not None else '[deleted]'
+                sub_info[field].append(author)
+            elif field == 'created':
+                # convert timestamp to datetime
+                sub_info[field].append(datetime.datetime.fromtimestamp(variables[field]))
             else:
                 sub_info[field].append(variables[field])
     # print(sub_info)
     subreddit_dicts.append(sub_info)
 
-#pprint(subreddit_dicts)
+# each df below contains the data for fields above
+df_republican = pd.DataFrame.from_dict(subreddit_dicts[0])
+df_democrat = pd.DataFrame.from_dict(subreddit_dicts[1])
+df_bipartisan = pd.DataFrame.from_dict(subreddit_dicts[2])
 
-the_donald_df = pd.DataFrame.from_dict(subreddit_dicts[0])
+all_data = [df_republican, df_democrat, df_bipartisan]
+colors = ['r', 'b', 'y']
 
-pprint(df)
+# get a bar chart of how many top posts are in each month.
 
-plt.plot(subreddit_dicts[0]['ups'])
-plt.show()
+# make subplots (3 rows, 1 column)
+fig, axs = plt.subplots(len(all_data), 1)
+fig.suptitle("Monthly distribution of top post creation dates", fontweight='bold')
+
+for index, df in enumerate(all_data):
+    # iterate through each df and plot it
+    activity_month = df.created.groupby(df.created.dt.month).count()
+    subreddit_plot = activity_month.plot(kind="bar", ax=axs[index], y="Number of top posts", color = colors[index])
+    subreddit_plot.grid(True)
+    subreddit_plot.set_xlabel("Month")
+    subreddit_plot.set_ylabel("Number of top posts")
+    subreddit_plot.set_title('/r/' + subreddits[index])
+
+# So the plots don't overlap
+plt.tight_layout()
+
+# The plot title isn't accounted for in the the tight layout
+plt.subplots_adjust(top = 0.9)
+
+# save image to current directory and close the plot
+fig.savefig("post_months.png")
+plt.close()
