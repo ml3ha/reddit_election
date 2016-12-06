@@ -6,6 +6,7 @@ import pandas as pd
 import datetime
 import re
 from stop_words import get_stop_words
+from ggplot import *
 
 # Summary of pip packages we're using:
 # praw: Reddit api scraper with a collection of methods that can be used to retrieve data from reddit.com
@@ -117,7 +118,8 @@ def get_word_frequency(dfs):
                 regex = re.compile('[^a-zA-Z]')
                 word = regex.sub("", word)
                 # increment frequency of that word in the dictionary by 1
-                frequencies[word] += 1
+                if word:
+                    frequencies[word] += 1
         data = {"word": list(frequencies.keys()), "frequency": list(frequencies.values())}
         df_freq = pd.DataFrame(data, columns = ["word", "frequency"])
         df_freq = df_freq.sort_values(by="frequency", ascending = False)
@@ -126,4 +128,113 @@ def get_word_frequency(dfs):
 
 word_frequencies = get_word_frequency(all_data)
 print(word_frequencies)
+#%%
+# Victoria's code
+# plotting word freq
+bipartisan_wordfreq_df = word_frequencies[2]
+democrat_wordfreq_df = word_frequencies[1]
+republican_wordfreq_df = word_frequencies[0]
 
+bipartisan_wordfreq_df = bipartisan_wordfreq_df.sort_values(by = "frequency", ascending = False)
+democrat_wordfreq_df = democrat_wordfreq_df.sort_values(by = "frequency", ascending = False)
+republican_wordfreq_df = republican_wordfreq_df.sort_values(by = "frequency", ascending = False)
+
+republican_wordfreq_df["subreddit"] = "The_Donald"
+democrat_wordfreq_df["subreddit"] = "HillaryClinton"
+bipartisan_wordfreq_df["subreddit"] = "politics"
+
+mergeTwoDf = bipartisan_wordfreq_df[:10].merge(democrat_wordfreq_df[:10], how = "outer")
+allSubredditsMerged = mergeTwoDf.merge(republican_wordfreq_df[:10], how = "outer")
+
+ggplot(aes(x="word", weight = "frequency", fill = "word"), data = bipartisan_wordfreq_df[:10]) +\
+    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/politics Subreddit's Top 100 Posts")
+
+ggplot(aes(x="word", weight = "frequency", fill = "word"), data = democrat_wordfreq_df[:10]) +\
+    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/hillaryclinton Subreddit's Top 100 Posts")
+
+ggplot(aes(x="word", weight = "frequency", fill = "word"), data = republican_wordfreq_df[:10]) +\
+    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/The_Donald Subreddit's Top 100 Posts")
+
+#%%
+bipartisan_top10Words = np.array(bipartisan_wordfreq_df[:10].word)
+democrat_top10Words = np.array(democrat_wordfreq_df[:10].word)
+republican_top10Words = np.array(republican_wordfreq_df[:10].word)
+
+np.intersect1d(bipartisan_top10Words, democrat_top10Words)
+np.intersect1d(republican_top10Words, democrat_top10Words)
+np.intersect1d(republican_top10Words, bipartisan_top10Words)
+
+# all three intersect at the word "Trump"
+#%%
+# Identify users who posted in more than one subreddit
+bipartisan_users = np.unique(df_bipartisan.author)
+democrat_users = np.unique(df_democrat.author)
+republican_users = np.unique(df_republican.author)
+
+np.intersect1d(bipartisan_users, democrat_users)
+np.intersect1d(republican_users, democrat_users) # unable to tell if any users posted in both republican & democrat
+np.intersect1d(bipartisan_users, republican_users) # unable to tell
+
+#%%
+# Confidence interval
+republican_subs = r.subreddit("The_Donald").subscribers
+democrat_subs = r.subreddit("HillaryClinton").subscribers
+bipartisan_subs = r.subreddit("politics").subscribers
+
+# calculate scaled value of upvotes
+df_republican["scaledups"] = df_republican.ups / republican_subs
+df_democrat["scaledups"] = df_democrat.ups / democrat_subs
+df_bipartisan["scaledups"] = df_bipartisan.ups / bipartisan_subs
+
+xbar_republicanUps = np.mean(df_republican["scaledups"])
+std_republicanUps = np.std(df_republican["scaledups"], ddof = 1)
+
+xbar_democratUps = np.mean(df_democrat["scaledups"])
+std_democratUps = np.std(df_democrat["scaledups"], ddof = 1)
+
+xbar_bipartisanUps = np.mean(df_bipartisan["scaledups"])
+std_bipartisanUps = np.std(df_bipartisan["scaledups"], ddof = 1)
+
+# 95% CI for scaled mean value of upvotes
+upperBoundRepublican_scaledMean = xbar_republicanUps + scipy.stats.t.isf(0.025, len(df_republican)-1)*(std_republicanUps / len(df_republican)**0.5)
+lowerBoundRepublican_scaledMean = xbar_republicanUps - scipy.stats.t.isf(0.025, len(df_republican)-1)*(std_republicanUps / len(df_republican)**0.5)
+
+upperBoundDemocrat_scaledMean = xbar_democratUps + scipy.stats.t.isf(0.025, len(df_democrat)-1)*(std_democratUps / len(df_democrat)**0.5)
+lowerBoundDemocrat_scaledMean = xbar_democratUps - scipy.stats.t.isf(0.025, len(df_democrat)-1)*(std_democratUps / len(df_democrat)**0.5)
+
+upperBoundBipartisan_scaledMean = xbar_bipartisanUps + scipy.stats.t.isf(0.025, len(df_bipartisan)-1)*(std_bipartisanUps / len(df_bipartisan)**0.5)
+lowerBoundBipartisan_scaledMean = xbar_bipartisanUps - scipy.stats.t.isf(0.025, len(df_bipartisan)-1)*(std_bipartisanUps / len(df_bipartisan)**0.5)
+
+print("Republican 95%: ", [lowerBoundRepublican_scaledMean, upperBoundRepublican_scaledMean])
+print("Democrat 95%: ", [lowerBoundDemocrat_scaledMean, upperBoundDemocrat_scaledMean])
+print("Bipartisan 95%: ", [lowerBoundBipartisan_scaledMean, upperBoundBipartisan_scaledMean])
+
+#%%
+
+df_republican["ratioUpvotesVsComments"] = df_republican.ups / df_republican.num_comments
+df_democrat["ratioUpvotesVsComments"] = df_democrat.ups / df_democrat.num_comments
+df_bipartisan["ratioUpvotesVsComments"] = df_bipartisan.ups / df_bipartisan.num_comments
+
+xbar_republicanRatio = np.mean(df_republican["ratioUpvotesVsComments"])
+std_republicanRatio = np.std(df_republican["ratioUpvotesVsComments"], ddof = 1)
+
+xbar_democratRatio = np.mean(df_democrat["ratioUpvotesVsComments"])
+std_democratRatio = np.std(df_democrat["ratioUpvotesVsComments"], ddof = 1)
+
+xbar_bipartisanRatio = np.mean(df_bipartisan["ratioUpvotesVsComments"])
+std_bipartisanRatio = np.std(df_bipartisan["ratioUpvotesVsComments"], ddof = 1)
+
+upperBoundRepublican_ratioMean = xbar_republicanRatio + scipy.stats.t.isf(0.025, len(df_republican)-1)*(std_republicanRatio / len(df_republican)**0.5)
+lowerBoundRepublican_ratioMean = xbar_republicanRatio - scipy.stats.t.isf(0.025, len(df_republican)-1)*(std_republicanRatio / len(df_republican)**0.5)
+
+upperBoundDemocrat_ratioMean = xbar_democratRatio + scipy.stats.t.isf(0.025, len(df_democrat)-1)*(std_democratRatio / len(df_democrat)**0.5)
+lowerBoundDemocrat_ratioMean = xbar_democratRatio - scipy.stats.t.isf(0.025, len(df_democrat)-1)*(std_democratRatio / len(df_democrat)**0.5)
+
+upperBoundBipartisan_ratioMean = xbar_bipartisanRatio + scipy.stats.t.isf(0.025, len(df_bipartisan)-1)*(std_bipartisanRatio / len(df_bipartisan)**0.5)
+lowerBoundBipartisan_ratioMean = xbar_bipartisanRatio - scipy.stats.t.isf(0.025, len(df_bipartisan)-1)*(std_bipartisanRatio / len(df_bipartisan)**0.5)
+
+print("Republican 95%: ", [lowerBoundRepublican_ratioMean, upperBoundRepublican_ratioMean])
+print("Democrat 95%: ", [lowerBoundDemocrat_ratioMean, upperBoundDemocrat_ratioMean])
+print("Bipartisan 95%: ", [lowerBoundBipartisan_ratioMean, upperBoundBipartisan_ratioMean])
+
+# Overlap between democrats & republican ratio of upvotes vs comments
