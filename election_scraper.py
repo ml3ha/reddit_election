@@ -6,6 +6,7 @@ import pandas as pd
 import datetime
 import re
 from stop_words import get_stop_words
+from ggplot import *
 
 # Summary of pip packages we're using:
 # praw: Reddit api scraper with a collection of methods that can be used to retrieve data from reddit.com
@@ -117,7 +118,8 @@ def get_word_frequency(dfs):
                 regex = re.compile('[^a-zA-Z]')
                 word = regex.sub("", word)
                 # increment frequency of that word in the dictionary by 1
-                frequencies[word] += 1
+                if word:
+                    frequencies[word] += 1
         data = {"word": list(frequencies.keys()), "frequency": list(frequencies.values())}
         df_freq = pd.DataFrame(data, columns = ["word", "frequency"])
         df_freq = df_freq.sort_values(by="frequency", ascending = False)
@@ -128,127 +130,21 @@ word_frequencies = get_word_frequency(all_data)
 print(word_frequencies)
 #%%
 # Victoria's code
-# http://ir.dcs.gla.ac.uk/resources/linguistic_utils/stop_words (stop words / common words)
-# http://stackoverflow.com/questions/952914/making-a-flat-list-out-of-list-of-lists-in-python
-
-commonwords = open("stopwords.txt").read().splitlines()
-
-bipartisan_titles = []
-
-for text in df_bipartisan.title:
-    print(text)
-    punctuation_regex = re.compile(r"[.,\?/#!$%\^&\*;:{}=\-_`~()\’\"”“‘]")
-    match_object_basic = punctuation_regex.findall(text)
-
-    if match_object_basic is not None:
-        text_without_punc = text
-        
-        for basic_entry in match_object_basic:
-            if basic_entry != []:
-                text_without_punc = text_without_punc.replace(basic_entry, "")
-    else:
-        text_without_punc = text
-
-    text_list = text_without_punc.lower().split(" ")
-    
-    for word in commonwords:
-        while word in text_list:
-            text_list.remove(word)
-            
-    bipartisan_titles.append(text_list)
-
-bipartisan_titles = [item for sublist in bipartisan_titles for item in sublist] # flatten the list of lists into a single list
-
-while "" in bipartisan_titles:
-    bipartisan_titles.remove("")
-    
-bipartisan_wordfreq = {}
-
-for word in bipartisan_titles:
-    ct = bipartisan_wordfreq.get(word, 0)
-    ct += 1
-    bipartisan_wordfreq[word] = ct
-
-#%%
-republican_titles = []
-
-for text in df_republican.title:
-    print(text)
-    punctuation_regex = re.compile(r"[.,\?/#!$%\^&\*;:{}=\-_`~()\’\"”“‘]")
-    match_object_basic = punctuation_regex.findall(text)
-
-    if match_object_basic is not None:
-        text_without_punc = text
-        
-        for basic_entry in match_object_basic:
-            if basic_entry != []:
-                text_without_punc = text_without_punc.replace(basic_entry, "")
-    else:
-        text_without_punc = text
-
-    text_list = text_without_punc.lower().split(" ")
-    
-    for word in commonwords:
-        while word in text_list:
-            text_list.remove(word)
-            
-    republican_titles.append(text_list)
-
-republican_titles = [item for sublist in republican_titles for item in sublist] # flatten the list of lists into a single list
-
-while "" in republican_titles:
-    republican_titles.remove("")
-    
-republican_wordfreq = {}
-
-for word in republican_titles:
-    ct = republican_wordfreq.get(word, 0)
-    ct += 1
-    republican_wordfreq[word] = ct
-#%%
-democrat_titles = []
-
-for text in df_democrat.title:
-    punctuation_regex = re.compile(r"[.,\?/#!$%\^&\*;:{}=\-_`~()\’\"”“‘]")
-    match_object_basic = punctuation_regex.findall(text)
-    
-    if match_object_basic is not None:
-        text_without_punc = text
-        
-        for basic_entry in match_object_basic:
-            if basic_entry != []:
-                text_without_punc = text_without_punc.replace(basic_entry, "")
-    else:
-        text_without_punc = text
-
-    text_list = text_without_punc.lower().split(" ")
-    
-    for word in commonwords:
-        while word in text_list:
-            text_list.remove(word)
-            
-    democrat_titles.append(text_list)
-
-democrat_titles = [item for sublist in democrat_titles for item in sublist] # flatten the list of lists into a single list
-
-while "" in democrat_titles:
-    democrat_titles.remove("")
-    
-democrat_wordfreq = {}
-
-for word in democrat_titles:
-    ct = democrat_wordfreq.get(word, 0)
-    ct += 1
-    democrat_wordfreq[word] = ct
-#%%
 # plotting word freq
-bipartisan_wordfreq_df = pd.DataFrame(list(bipartisan_wordfreq.items()), columns=['word', 'frequency'])
-democrat_wordfreq_df = pd.DataFrame(list(democrat_wordfreq.items()), columns=['word', 'frequency'])
-republican_wordfreq_df = pd.DataFrame(list(republican_wordfreq.items()), columns=['word', 'frequency'])
+bipartisan_wordfreq_df = word_frequencies[2]
+democrat_wordfreq_df = word_frequencies[1]
+republican_wordfreq_df = word_frequencies[0]
 
 bipartisan_wordfreq_df = bipartisan_wordfreq_df.sort_values(by = "frequency", ascending = False)
 democrat_wordfreq_df = democrat_wordfreq_df.sort_values(by = "frequency", ascending = False)
 republican_wordfreq_df = republican_wordfreq_df.sort_values(by = "frequency", ascending = False)
+
+republican_wordfreq_df["subreddit"] = "The_Donald"
+democrat_wordfreq_df["subreddit"] = "HillaryClinton"
+bipartisan_wordfreq_df["subreddit"] = "politics"
+
+mergeTwoDf = bipartisan_wordfreq_df[:10].merge(democrat_wordfreq_df[:10], how = "outer")
+allSubredditsMerged = mergeTwoDf.merge(republican_wordfreq_df[:10], how = "outer")
 
 ggplot(aes(x="word", weight = "frequency", fill = "word"), data = bipartisan_wordfreq_df[:10]) +\
     geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/politics Subreddit's Top 100 Posts")
