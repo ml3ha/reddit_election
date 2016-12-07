@@ -7,6 +7,7 @@ import datetime
 import re
 from stop_words import get_stop_words
 from ggplot import *
+import scipy
 
 # Summary of pip packages we're using:
 # praw: Reddit api scraper with a collection of methods that can be used to retrieve data from reddit.com
@@ -113,7 +114,7 @@ def get_word_frequency(dfs):
             # go through each title and count frequencies
             title = title.split()
             title_cleaned = [word.strip().lower() for word in title if word.lower() not in stop_words]
-            for word in title_cleaned:
+            for word in title_cleaned:  
                 # only get the words and remove punctuation
                 regex = re.compile('[^a-zA-Z]')
                 word = regex.sub("", word)
@@ -143,24 +144,26 @@ republican_wordfreq_df["subreddit"] = "The_Donald"
 democrat_wordfreq_df["subreddit"] = "HillaryClinton"
 bipartisan_wordfreq_df["subreddit"] = "politics"
 
-mergeTwoDf = bipartisan_wordfreq_df[:10].merge(democrat_wordfreq_df[:10], how = "outer")
-allSubredditsMerged = mergeTwoDf.merge(republican_wordfreq_df[:10], how = "outer")
+mergeTwoDf = republican_wordfreq_df[:10].merge(democrat_wordfreq_df[:10], how = "outer")
+allSubredditsMerged = mergeTwoDf.merge(bipartisan_wordfreq_df[:10], how = "outer")
 
 ggplot(aes(x="word", weight = "frequency", fill = "word"), data = bipartisan_wordfreq_df[:10]) +\
-    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/politics Subreddit's Top 100 Posts")
-
+    geom_bar(size = 50) + ggtitle("Top 10 Words Used in the r/politics Subreddit's Top 100 Posts")
+    
 ggplot(aes(x="word", weight = "frequency", fill = "word"), data = democrat_wordfreq_df[:10]) +\
     geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/hillaryclinton Subreddit's Top 100 Posts")
 
 ggplot(aes(x="word", weight = "frequency", fill = "word"), data = republican_wordfreq_df[:10]) +\
     geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/The_Donald Subreddit's Top 100 Posts")
 
+ggplot(aes(x = "subreddit", weight = "frequency", fill = 'subreddit'), data = allSubredditsMerged[allSubredditsMerged.word == "trump"]) +\
+    geom_bar(size = 25) + ggtitle("Frequency of \"Trump\" Across the Three Different Subreddits")
 #%%
 bipartisan_top10Words = np.array(bipartisan_wordfreq_df[:10].word)
 democrat_top10Words = np.array(democrat_wordfreq_df[:10].word)
 republican_top10Words = np.array(republican_wordfreq_df[:10].word)
 
-np.intersect1d(bipartisan_top10Words, democrat_top10Words)
+np.intersect1d(bipartisan_top10Words, democrat_top10Words)  
 np.intersect1d(republican_top10Words, democrat_top10Words)
 np.intersect1d(republican_top10Words, bipartisan_top10Words)
 
