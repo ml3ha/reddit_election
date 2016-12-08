@@ -158,8 +158,8 @@ print("Got and plotted word frequencies")
 
 for index, df in enumerate(word_frequencies):
     df_words = df.sort_values(by="frequency", ascending = False)
-    g = ggplot(aes(x="word", weight = "frequency", fill = "word"), data = df_words[:10]) +\
-        geom_bar(size = 30) + ggtitle("Most Frequently Used Words in the /r/" + subreddits[index] + " Top 100 Posts")
+    g = ggplot(df_words[:10], aes(x="word", weight = "frequency", fill = "word")) +\
+        geom_bar(size=30, stat="identity") + ggtitle("Most Frequently Used Words in the /r/" + subreddits[index] + " Top 100 Posts")
     g.save("img/" + subreddits[index] + "_frequency.png")
 
 mergeTwoDf = word_frequencies[0][:10].merge(word_frequencies[1][:10], how = "outer")
