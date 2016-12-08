@@ -7,7 +7,6 @@ import datetime
 import re
 from stop_words import get_stop_words
 from ggplot import *
-import urllib.request
 import scipy
 import calendar
 
@@ -86,14 +85,18 @@ colors = ['r', 'b', 'y']
 # make subplots (3 rows, 1 column)
 fig, axs = plt.subplots(len(all_data), 1, figsize=(15,12))
 fig.suptitle("Monthly distribution of top post creation dates", fontweight='bold')
+
+# iterate through each df and plot it
 for index, df in enumerate(all_data):
-    # iterate through each df and plot it
+    # convert x-axis to date-time (not just numbers)
     activity_month = df.created.groupby([df.created.dt.year, df.created.dt.month.apply(lambda x: calendar.month_name[x][0:3])]).count()
     activity_month.index.names = ['Year', ' Month']
     df_activity = pd.DataFrame({"date": list(activity_month.index.values), "num": list(activity_month.values)})
     df_activity.date = df_activity.date.apply(lambda x: datetime.datetime.strptime(str(x), "(%Y, '%b')"))
     df_activity = df_activity.sort_values(by="date", ascending = True)
     df_activity.date = df_activity.date.apply(lambda x: x.strftime("%b %Y"))
+
+    # make the plot now that the data is formatted correctly
     subreddit_plot = df_activity.plot(kind="bar", ax = axs[index], color = colors[index])
     subreddit_plot.grid(True)
     subreddit_plot.set_ylabel("Number of top posts")
@@ -112,20 +115,21 @@ plt.close()
 print("plotted monthly distribution of post creation dates")
 
 # Count word frequencies
-# Returns: a list of dataframes of word frequencies for each item in the "dfs" parameter
-def get_word_frequency(dfs):
+# Returns: a list of dataframes of word frequencies for each item in the "dfs" parameter with the field provided
+# Here the field is either "title" or "selftext"
+def get_word_frequency(dfs, field):
     #stop words are common words like "I, me, this, the, a, of, to, etc."
     stop_words = get_stop_words('english')
     word_freq = []
     for index, df in enumerate(dfs):
         # keeps track of frequencies
         frequencies = defaultdict(int)
-        titles = list(df.title)
-        for title in titles:
+        text = list(df[field])
+        for t in text:
             # go through each title and count frequencies
-            title = title.split()
-            title_cleaned = [word.strip().lower() for word in title if word.lower() not in stop_words]
-            for word in title_cleaned:  
+            t = t.split()
+            t_cleaned = [word.strip().lower() for word in t if word.lower() not in stop_words]
+            for word in t_cleaned:
                 # only get the words and remove punctuation
                 word = word.strip()
                 regex = re.compile('[^a-zA-Z]')
@@ -133,6 +137,7 @@ def get_word_frequency(dfs):
                 if word:
                     # increment frequency of that word in the dictionary by 1
                     frequencies[word] += 1
+        # Make the dataframe
         data = {"word": list(frequencies.keys()), "frequency": list(frequencies.values())}
         df_freq = pd.DataFrame(data, columns = ["word", "frequency"])
         df_freq = df_freq.sort_values(by="frequency", ascending = False)
@@ -140,13 +145,20 @@ def get_word_frequency(dfs):
         word_freq.append(df_freq)
     return word_freq
 
-word_frequencies = get_word_frequency(all_data)
+word_frequencies = get_word_frequency(all_data, "title")
+word_frequencies_self_text = get_word_frequency(all_data, "selftext")
 
+# Plot top 10 words used in titles for each subreddit
 fig, axs = plt.subplots(len(all_data), 1, figsize = (15,10))
+fig.suptitle("Top 10 words used in post titles from /r/The_Donald, /r/HillaryClinton, and /r/politics", fontweight='bold')
 for index, df in enumerate(word_frequencies):
-    df = df[0:15]
+    df = df[0:10]
     frequency_plot = df.plot(kind="bar",x="word", y="frequency", ax=axs[index], color = colors[index])
+    frequency_plot.set_title("/r/" + subreddits[index])
+    frequency_plot.set_ylabel("Occurrences")
+    axs[index].set_xticklabels(axs[index].get_xticklabels(), rotation = 'horizontal')
 plt.tight_layout()
+plt.subplots_adjust(top = 0.9)
 fig.savefig("img/word_frequency.png", dpi = 100)
 plt.close()
 
@@ -156,29 +168,23 @@ print("Got and plotted word frequencies")
 # Victoria's code with clean-up by max
 # plotting word freq
 
+# Plot word frequency
 for index, df in enumerate(word_frequencies):
     df_words = df.sort_values(by="frequency", ascending = False)
-    g = ggplot(df_words[:10], aes(x="word", weight = "frequency", fill = "word")) +\
+    df_selftext = word_frequencies_self_text[index].sort_values(by="frequency", ascending = False)
+    g = ggplot(df_words[0:10], aes(x="word", weight = "frequency", fill = "word")) +\
         geom_bar(size=30, stat="identity") + ggtitle("Most Frequently Used Words in the /r/" + subreddits[index] + " Top 100 Posts")
     g.save("img/" + subreddits[index] + "_frequency.png")
+    self_text_plot = ggplot(df_selftext[0:10], aes(x="word", weight = "frequency", fill = "word")) + \
+                     geom_bar(stat = "identity", size = 30) + ggtitle("Top 10 Words Used in the r/politics Subreddit's Top 100 Posts Selftext")
+    self_text_plot.save("img/" + subreddits[index] + "_frequency_selftext.png")
+
 
 mergeTwoDf = word_frequencies[0][:10].merge(word_frequencies[1][:10], how = "outer")
 allSubredditsMerged = mergeTwoDf.merge(word_frequencies[2][:10], how = "outer")
 
-
-ggplot(aes(x = "subreddit", weight = "frequency", fill = 'subreddit'), data = allSubredditsMerged[allSubredditsMerged.word == "trump"]) +\
-    geom_bar(size = 25) + ggtitle("Frequency of \"Trump\" Across the Three Different Subreddits")
-ggplot(aes(x="word", weight = "frequency", fill = "word"), data = bipartisan_wordfreq_df[:10]) +\
-    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/politics Subreddit's Top 100 Posts Titles")
-
-ggplot(aes(x="word", weight = "frequency", fill = "word"), data = democrat_wordfreq_df[:10]) +\
-    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/hillaryclinton Subreddit's Top 100 Posts Titles")
-
-ggplot(aes(x="word", weight = "frequency", fill = "word"), data = republican_wordfreq_df[:10]) +\
-    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/The_Donald Subreddit's Top 100 Posts Titles")
-
-
 top_10_words = [np.array(df[0:10].word) for df in word_frequencies]
+top_10_self_text = [np.array(df[0:10].word) for df in word_frequencies_self_text]
 
 np.intersect1d(top_10_words[2], top_10_words[1])
 np.intersect1d(top_10_words[0], top_10_words[1])
@@ -187,15 +193,6 @@ np.intersect1d(top_10_words[0], top_10_words[2])
 # all three intersect at the word "Trump"
 #%%
 
-# Identify users who posted in more than one subreddit
-"""
-Not using this part
-multi_users = [np.unique(df.author) for df in word_frequencies]
-
-np.intersect1d(bipartisan_users, democrat_users)
-np.intersect1d(republican_users, democrat_users) # unable to tell if any users posted in both republican & democrat
-np.intersect1d(bipartisan_users, republican_users) # unable to tell
-"""
 #%%
 # Confidence interval
 num_subs = [r.subreddit(sub_name).subscribers for sub_name in subreddits]
@@ -217,70 +214,4 @@ for index, df in enumerate(all_data):
     print("95% confidence interval for ratio of upvotes to comments", subreddits[index], ":", confidence_interval)
 
 # Overlap between democrats & republican ratio of upvotes vs comments
-
-## katie's code for finding word freq in the selftext
-
-# Count word frequencies
-# Returns: a list of dataframes of word frequencies for each item in the "dfs" parameter
-def get_word_frequency_selftext(dfs):
-    #stop words are common words like "I, me, this, the, a, of, to, etc."
-    stop_words = get_stop_words('english')
-    word_freq = []
-    for df in dfs:
-        # keeps track of frequencies
-        frequencies = defaultdict(int)
-        selftexts = list(df.selftext)
-        for selftext in selftexts:
-            # go through each selftext and count frequencies
-            selftext = selftext.split()
-            selftext_cleaned = [word.strip().lower() for word in selftext if word.lower() not in stop_words]
-            for word in selftext_cleaned:
-                # only get the words and remove punctuation
-                regex = re.compile('[^a-zA-Z]')
-                word = regex.sub("", word)
-                # increment frequency of that word in the dictionary by 1
-                if word:
-                    frequencies[word] += 1
-        data = {"word": list(frequencies.keys()), "frequency": list(frequencies.values())}
-        df_freq = pd.DataFrame(data, columns = ["word", "frequency"])
-        df_freq = df_freq.sort_values(by="frequency", ascending = False)
-        word_freq.append(df_freq)
-    return word_freq
-
-word_frequencies_selftext = get_word_frequency_selftext(all_data)
-print(word_frequencies_selftext)
-#%%
-# plotting word freq from selftext
-bipartisan_wordfreq_df_selftext = word_frequencies_selftext[2]
-democrat_wordfreq_df_selftext = word_frequencies_selftext[1]
-republican_wordfreq_df_selftext = word_frequencies_selftext[0]
-
-bipartisan_wordfreq_df_selftext = bipartisan_wordfreq_df_selftext.sort_values(by = "frequency", ascending = False)
-democrat_wordfreq_df_selftext = democrat_wordfreq_df_selftext.sort_values(by = "frequency", ascending = False)
-republican_wordfreq_df_selftext = republican_wordfreq_df_selftext.sort_values(by = "frequency", ascending = False)
-
-republican_wordfreq_df_selftext["subreddit"] = "The_Donald"
-democrat_wordfreq_df_selftext["subreddit"] = "HillaryClinton"
-bipartisan_wordfreq_df_selftext["subreddit"] = "politics"
-
-mergeTwoDf = bipartisan_wordfreq_df_selftext[:10].merge(democrat_wordfreq_df_selftext[:10], how = "outer")
-allSubredditsMerged_selftext = mergeTwoDf.merge(republican_wordfreq_df_selftext[:10], how = "outer")
-
-ggplot(aes(x="word", weight = "frequency", fill = "word"), data = bipartisan_wordfreq_df_selftext[:10]) +\
-    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/politics Subreddit's Top 100 Posts Selftext")
-
-ggplot(aes(x="word", weight = "frequency", fill = "word"), data = democrat_wordfreq_df_selftext[:10]) +\
-    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/hillaryclinton Subreddit's Top 100 Posts Selftext")
-
-ggplot(aes(x="word", weight = "frequency", fill = "word"), data = republican_wordfreq_df_selftext[:10]) +\
-    geom_bar(stat = "identity", size = 50) + ggtitle("Top 10 Words Used in the r/The_Donald Subreddit's Top 100 Posts Selftext")
-
-#%%
-bipartisan_top10Words_selftext = np.array(bipartisan_wordfreq_df_selftext[:10].word)
-democrat_top10Words_selftext = np.array(democrat_wordfreq_df_selftext[:10].word)
-republican_top10Words_selftext = np.array(republican_wordfreq_df_selftext[:10].word)
-
-np.intersect1d(bipartisan_top10Words_selftext, democrat_top10Words_selftext)
-np.intersect1d(republican_top10Words_selftext, democrat_top10Words_selftext)
-np.intersect1d(republican_top10Words_selftext, bipartisan_top10Words_selftext)
 
